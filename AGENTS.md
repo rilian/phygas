@@ -75,8 +75,10 @@ Break one of these and results become silently wrong.
 * Authority: the checkpoint. With `start > 0`, `out` is opened with `"a"`, otherwise `"w"`
   (`main_phygas_boinc.cpp:413-421`). `out` is not cut back to the checkpoint, so rows after the last checkpoint are
   duplicated or torn (PHY-001, reproduced).
-* Writing: in place with `"w"`, unchecked, value not range-checked on reading (PHY-002); an open failure restarts from 0
-  (PHY-015).
+* Writing: the checkpoint is rewritten in place with `"w"`.
+  * Its writes are not checked, and the value read back is not range-checked (PHY-002).
+  * A checkpoint that cannot be opened restarts the task from 0 and truncates `out` (PHY-015).
+  * Write errors on `out` are not checked before `boinc_finish(0)` (PHY-016).
 * Cadence: CPU path when `boinc_time_to_checkpoint()` returns 1 (the write is inside its critical section) and after the
   last target (459-464); GPU screen after every batch, GPU pair after every flush that completes targets, both without
   asking the timer (PHY-003). Critical sections: only the one `boinc_time_to_checkpoint()` opens; every 1 is paired
@@ -186,12 +188,15 @@ cc -O2 -std=c99 -I src src/phygas.c src/coords.c src/potential.c src/montecarlo.
 applications. Workflow: [docs/kb/shared/PROCESS.md](docs/kb/shared/PROCESS.md).
 
 - Ready to fix, with next steps: `python3 docs/kb/shared/kb.py list --open --action fix` (also `--area`,
-  `--platform`); then the issue's file and the pattern it links.
+  `--platform`). Then `kb.py show PHY-NNN` for the issue and `kb.py show PAT-NNN` for the pattern it links, with the
+  BOINC API facts the pattern cites. In the code, read the functions that `where:` and the Cause name.
 - All repositories checked out next to this one: `kb.py todo`, then `kb.py todo --pattern PAT-NNN` for the next step
   and place of each issue; `kb.py check PAT-NNN` checks a pattern everywhere.
-- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`.
+- Before debugging a symptom: `grep -ril "<words>" ../*/docs/kb/issues docs/kb/shared/patterns`, then `kb.py show`
+  the ids it finds. Read other repositories through the shell (`kb.py show`, `git -C ../<repo> grep -n`, `sed -n`):
+  opening one of their files in an editor tool can load their whole AGENTS.md as well.
 - New report: `kb.py new issue "symptom in a few words" area=... next=...`.
 - After a fix: `kb.py set PHY-NNN status=fix-proposed --log "..."` (`status=fixed fixed_in=<commit>` once merged),
-  and update the lines of this file it prints. The commit names the issue (`KB: PHY-NNN`) and the pattern, if any
+  and update the passages of this file it prints. The commit names the issue (`KB: PHY-NNN`) and the pattern, if any
   (`Pattern: PAT-NNN`).
 - Before a pull request: `kb.py index && kb.py lint --strict`.
